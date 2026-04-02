@@ -1,0 +1,136 @@
+---
+interface Variant {
+	format?: string;
+	isbn?: string;
+	metadata?: {
+		pages?: number;
+		dimensions?: string;
+		[key: string]: unknown;
+	};
+	[key: string]: unknown;
+}
+
+interface Props {
+	product: {
+		slug: string;
+		data: {
+			title: string;
+			sku?: string;
+			narrator?: string;
+			audio_runtime?: string;
+			variants?: Variant[] | string;
+			[key: string]: unknown;
+		};
+	};
+}
+
+const { product } = Astro.props;
+
+// Parse variants (may be JSON string or array)
+let parsedVariants: Variant[] = [];
+if (typeof product.data.variants === "string") {
+	try {
+		parsedVariants = JSON.parse(product.data.variants);
+	} catch {}
+} else if (Array.isArray(product.data.variants)) {
+	parsedVariants = product.data.variants;
+}
+
+// Find ISBN — prefer paperback, then first variant with isbn
+const paperbackVariant = parsedVariants.find(
+	(v) => v.format === "paperback" || v.format === "hardcover"
+);
+const isbnVariant = paperbackVariant || parsedVariants.find((v) => v.isbn);
+const isbn = isbnVariant?.isbn;
+
+// Find pages — from first physical variant's metadata
+const physicalVariant = parsedVariants.find(
+	(v) =>
+		v.format === "paperback" ||
+		v.format === "hardcover" ||
+		v.metadata?.pages
+);
+const pages = physicalVariant?.metadata?.pages;
+
+// Find dimensions — from metadata
+const dimensionsVariant = parsedVariants.find(
+	(v) => v.metadata?.dimensions
+);
+const dimensions = dimensionsVariant?.metadata?.dimensions;
+
+const narrator = product.data.narrator;
+const audioRuntime = product.data.audio_runtime;
+const sku = product.data.sku;
+
+// Build rows — only include rows where data exists
+const rows: { label: string; value: string | number }[] = [];
+if (isbn) rows.push({ label: "ISBN", value: isbn });
+if (pages) rows.push({ label: "Pages", value: pages });
+if (dimensions) rows.push({ label: "Dimensions", value: dimensions });
+if (narrator) rows.push({ label: "Narrator", value: narrator });
+if (audioRuntime) rows.push({ label: "Audio Runtime", value: audioRuntime });
+if (sku) rows.push({ label: "SKU", value: sku });
+---
+
+{rows.length > 0 && (
+	<div class="product-details">
+		<h3 class="details-heading">Product Details</h3>
+		<table class="details-table">
+			<tbody>
+				{rows.map((row, i) => (
+					<tr class={i % 2 === 0 ? "row-even" : "row-odd"}>
+						<th>{row.label}</th>
+						<td>{row.value}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	</div>
+)}
+
+<style>
+	.product-details {
+		margin-top: var(--spacing-lg);
+	}
+
+	.details-heading {
+		font-size: var(--font-size-base);
+		font-weight: 700;
+		margin-bottom: var(--spacing-md);
+		color: var(--color-text);
+	}
+
+	.details-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: var(--font-size-sm);
+		border-radius: var(--radius-sm);
+		overflow: hidden;
+		border: 1px solid var(--color-border);
+	}
+
+	.details-table th,
+	.details-table td {
+		padding: var(--spacing-sm) var(--spacing-md);
+		text-align: left;
+	}
+
+	.details-table th {
+		font-weight: 600;
+		color: var(--color-muted);
+		white-space: nowrap;
+		width: 140px;
+	}
+
+	.details-table td {
+		color: var(--color-text);
+	}
+
+	.row-even {
+		background: var(--color-surface);
+	}
+
+	.row-odd {
+		background: var(--color-bg);
+	}
+</style>
